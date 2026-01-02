@@ -1,0 +1,127 @@
+#include <stdio.h>
+#include <wiringPi.h>
+#include <time.h>
+#include <lcd.h>
+#include <string.h>
+
+//#set GPIO Pins
+//  12, 18   These are
+//  13, 19    PWM pins
+#define GPIO_TRIGGER 20
+#define GPIO_ECHO 21
+#define GPIO_PWM_LED 12
+#define SERVO_PWM_PIN 19
+#define RS 25
+#define E 24
+#define D4 23
+#define D5 17
+#define D6 18
+#define D7 22
+
+#define ROW 2
+#define COL 16
+#define PIN_MODE 4
+
+long int StartTime=0;
+long int StopTime=0;
+double TimeElapsed=0;
+double dist=0;
+
+
+
+void distU()
+{
+    //Ultraosnic Trigger with 10 uSec
+	  digitalWrite(GPIO_TRIGGER, HIGH);
+	  delay(10);
+	  digitalWrite(GPIO_TRIGGER, LOW);
+	  // save StartTime
+    while(digitalRead(GPIO_ECHO) == 0)
+        {StartTime = clock();}
+    // save time of arrival
+    while (digitalRead(GPIO_ECHO) == 1)
+        {StopTime = clock();}
+	  TimeElapsed=(double) (StopTime - StartTime);
+	  dist = (TimeElapsed * 34300) / (2.0*1000000);
+	  printf("distance=%f\n",dist);
+	  delay(500);
+}
+
+int main(void)
+{
+	  wiringPiSetupGpio();
+	  printf("***************************************\n");
+    printf("AUTONOMOUS CAR WITH ULTRASONIC SENSOR\n AND CLCD AND PWM DISTANCE MEASURING\n");
+    printf("***************************************\n");
+
+    pinMode (GPIO_PWM_LED,PWM_OUTPUT);
+    printf("Starting motor\n");
+    pinMode(SERVO_PWM_PIN,PWM_OUTPUT);
+    pwmSetRange(2000);
+    pwmSetMode(PWM_MODE_MS);
+    pwmSetClock(192);
+    pwmWrite(SERVO_PWM_PIN,0);
+
+	  pinMode(GPIO_TRIGGER, OUTPUT);
+    pinMode(GPIO_ECHO, INPUT);
+
+    double new_dist=0;
+    char display[17]="DISTANCE : NONE ";
+    //display[16] = '\0';
+    int clcd;
+    clcd = lcdInit(ROW,COL,PIN_MODE,RS,E,D4,D5,D6,D7,0,0,0,0);
+
+    lcdPosition(clcd,0,0);
+    lcdPuts(clcd," AUTONOMOUS CAR ");
+    lcdPosition(clcd,0,1);
+
+    lcdPuts(clcd,"     PROJECT    ");
+    delay(2000);
+    lcdPosition(clcd,0,0);
+    lcdPuts(clcd,"     STATUS     ");
+    lcdPosition(clcd,0,1);
+    lcdPuts(clcd,display);
+
+    char str[12];
+    str[11]='\0';
+    while(1)
+    {
+        distU();
+	      new_dist=dist*100;
+	      if( new_dist > 1023 )
+	      { new_dist = 1023; }
+	      else if ( new_dist < 2.5 )
+	      { new_dist = 0;}
+        pwmWrite(GPIO_PWM_LED, 1023-(new_dist));
+        printf("Intensity=%.3lf\n",1023-(new_dist)); 
+        sprintf(str,"%f\n",dist);
+        printf("str is  %s\n",str);
+        for( int i=0;i<4;i++)
+        {
+          display[11+i] = str[i];
+        }
+	      lcdPosition(clcd,0,1);
+        lcdPuts(clcd,display);
+        if ( dist < 2.5 )
+        {
+        lcdPosition(clcd,0,0);
+        lcdPuts(clcd,"     STOP       ");
+        break;
+        }
+        }
+         while(1)
+            {
+                printf("SERVO running..\n");
+                for(int i=45; i <215 ;i++)
+                {
+                    pwmWrite(SERVO_PWM_PIN,i);
+                    delay(10);
+                }
+                for(int i=215; i>=45;i--)
+                {
+                    pwmWrite(SERVO_PWM_PIN,i);
+                    delay(10);
+                }
+            }
+    return 0;
+}
